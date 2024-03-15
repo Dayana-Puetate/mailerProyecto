@@ -25,9 +25,9 @@ class EmailService {
       if (Array.isArray(email.recipients) && email.recipients.length > 0) {
         recipients = email.recipients.join(', ');
       } else {
-        // Manejar el caso en el que email.recipients no sea un arreglo o esté vacío
+        
         console.error('La lista de destinatarios es inválida.');
-        return; // Salir de la función sin enviar el correo
+        return;
       }
 
       await this.transporter.sendMail({

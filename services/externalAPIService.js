@@ -10,7 +10,7 @@ class ExternalAPIService {
     if (emailConfig.apiURL) {
       emails = JSON.parse(emailConfig.apiURL);
     } else {
-      //si no hay una URL de API externa, lanza un error
+
       throw new Error('No se encontraron correos electrónicos en las variables de entorno.');
     }
 

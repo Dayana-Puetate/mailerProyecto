@@ -6,7 +6,7 @@ const ngrok = require('ngrok')
 
 const app = express()
 
-// Configurar middleware para analizar solicitudes con formato JSON
+//middleware para analizar solicitudes con formato JSON
 app.use(express.json())
 
 //configuración de Swagger
@@ -38,7 +38,7 @@ const startServer = async () => {
       const url = await ngrok.connect(PORT);
       console.log(`Aplicacion disponible en ${url}`);
     } catch (error) {
-      console.error('Error al iniciar ngrok', error);
+      console.error('Error al iniciar servifdor.', error);
     }
   });
 
