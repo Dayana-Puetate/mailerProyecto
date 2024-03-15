@@ -6,6 +6,9 @@ const emailValidationService = new EmailValidationService();
 const ExternalAPIService = require('../services/externalAPIService');
 const externalAPIService = new ExternalAPIService();
 const { handleServerError } = require('../utils/errorHandlers');
+const path = require('path');
+const fs = require('fs');
+
 
 /**
  * @swagger
@@ -47,7 +50,25 @@ const { handleServerError } = require('../utils/errorHandlers');
 async function sendEmail(req, res) {
   try {
     const { subject, text, html } = req.body;
-    const attachments = req.files || [];
+    //const attachments = req.files || [];
+    let attachments = [];
+
+    //Añadir archivo por defecto
+    const defaultAttachment = {
+      filename: 'imagen.jpg', //nombre del archivo por defecto
+      path: 'assets/imagen.jpg' //ruta al archivo por defecto
+    };
+
+    // Si hay archivos adjuntos, agregarlos a la lista de archivos
+    if (req.files && req.files.length > 0) {
+      attachments = req.files;
+    }
+
+    // Verificar si el archivo por defecto existe en el sistema de archivos
+    const defaultAttachmentPath = 'assets/imagen.jpg';
+    if (fs.existsSync(defaultAttachmentPath)) {
+      attachments.push(defaultAttachment);
+    }
 
     //obtener los destinatarios de la API externa o de la variable de entorno
     const recipients = await externalAPIService.getEmails();
