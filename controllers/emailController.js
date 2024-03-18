@@ -1,15 +1,3 @@
-
-const EmailService = require('../services/emailService');
-const emailService = new EmailService();
-const EmailValidationService = require('../services/emailValidationService');
-const emailValidationService = new EmailValidationService();
-const ExternalAPIService = require('../services/externalAPIService');
-const externalAPIService = new ExternalAPIService();
-const { handleServerError } = require('../utils/errorHandlers');
-const path = require('path');
-const fs = require('fs');
-
-
 /**
  * @swagger
  * /emails/send:
@@ -47,62 +35,114 @@ const fs = require('fs');
  */
 
 
+const EmailService = require('../services/emailService');
+const emailService = new EmailService();
+const EmailValidationService = require('../services/emailValidationService');
+const emailValidationService = new EmailValidationService();
+const ExternalAPIService = require('../services/externalAPIService');
+const externalAPIService = new ExternalAPIService();
+const { handleServerError } = require('../utils/errorHandlers');
+const path = require('path');
+const fs = require('fs');
+const multer = require('multer');
+
+
+const max_file_size_MB = 25;
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, './assets/')
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.originalname)
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: max_file_size_MB * 1024 * 1024
+  }
+}).array('attachments');
+
+
 async function sendEmail(req, res) {
   try {
-    const { subject, text, html } = req.body;
-    //const attachments = req.files || [];
-    let attachments = [];
 
-    //Añadir archivo por defecto
-    const defaultAttachment = {
-      filename: 'imagen.jpg', //nombre del archivo por defecto
-      path: 'assets/imagen.jpg' //ruta al archivo por defecto
-    };
-
-    // Si hay archivos adjuntos, agregarlos a la lista de archivos
-    if (req.files && req.files.length > 0) {
-      attachments = req.files;
-    }
-
-    // Verificar si el archivo por defecto existe en el sistema de archivos
-    const defaultAttachmentPath = 'assets/imagen.jpg';
-    if (fs.existsSync(defaultAttachmentPath)) {
-      attachments.push(defaultAttachment);
-    }
-
-    //obtener los destinatarios de la API externa o de la variable de entorno
-    const recipients = await externalAPIService.getEmails();
-    const invalidEmails = [];
-
-
-    for (const recipient of recipients) {
-      //alidarformato
-      if (!emailValidationService.validateEmailFormat(recipient)) {
-        invalidEmails.push(recipient);
-        continue;
+    //subir archivos adjuntos al servidor
+    upload(req, res, async function (err) {
+      if (err) {
+        console.error('Error al subir archivos adjuntos:', err);
+        return res.status(500).json({ error: 'Error interno del servidor.' });
       }
 
-      const email = { recipients: [recipient], subject, text, html, attachments };
+      const { subject, text, html } = req.body;
+      let attachments = [];
 
-      //validar contenido
-      if (!emailValidationService.validateEmail(email)) {
-        invalidEmails.push(recipient);
-        continue;
+      //verificar si se subieron archivos
+      if (req.files && req.files.length > 0) {
+        attachments = req.files.map(file => {
+          return {
+            filename: file.filename,
+            path: file.path,
+            size: file.size
+          };
+        });
       }
 
-      //El correo electrónico es válido, continuar con el envío
-      await emailService.sendEmail(email);
-    }
+      //verificar el tamaño de cada archivo adjunto
+      const invalidAttachments = attachments.filter(attachment => attachment.size > max_file_size_MB * 1024 * 1024);
+      if (invalidAttachments.length > 0) {
+        const invalidFileNames = invalidAttachments.map(attachment => attachment.filename);
+        return res.status(400).json({ error: `Los siguientes archivos exceden el tamaño máximo de ${max_file_size_MB} MB: ${invalidFileNames.join(', ')}` });
+      }
 
-    /*if (invalidEmails.length > 0) {
-      return res.status(400).json({ error: `Email Inválidos: ${invalidEmails.join(', ')}` });
-    }*/
+      // Función para verificar si el correo tiene texto o HTML
+      function hasTextOrHtml(email) {
+        return email.text !== undefined || email.html !== undefined;
+      }
 
+      const recipients = await externalAPIService.getEmails();
+      const invalidEmails = [];
 
-    res.status(200).json({ message: 'Envío exitoso.' });
+      for (const recipient of recipients) {
 
+        // Validar formato de correo
+        if (!emailValidationService.validateEmailFormat(recipient)) {
+          invalidEmails.push(recipient);
+          continue;
+        }
+
+        const email = { recipients: [recipient], subject, text, html, attachments };
+
+        // Verificar si el correo electrónico tiene texto o HTML
+        if (hasTextOrHtml(email)) {
+          if (!emailValidationService.validateEmail(email)) {
+            invalidEmails.push(recipient);
+            continue;
+          }
+        } else {
+          invalidEmails.push(recipient);
+          continue;
+        }
+
+        //correo válido, continuar con el envío
+        await emailService.sendEmail(email);
+      }
+
+      if (invalidEmails.length > 0) {
+        return res.status(400).json({ error: `Emails inválidos: ${invalidEmails.join(', ')}` });
+      }
+
+      //Eliminar archivos adjuntos después del envío del correo electrónico
+      attachments.forEach(attachment => {
+        fs.unlinkSync(attachment.path);
+      });
+
+      res.status(200).json({ message: 'Envío exitoso.' });
+    });
   } catch (error) {
-    handleServerError(res, error); //manejo de errores del servidor
+    handleServerError(res, error);
   }
 }
 
