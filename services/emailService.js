@@ -32,12 +32,15 @@ class EmailService {
         console.error('La lista de destinatarios es inválida.');
         return;
       }
+      
+      const correoRemitente = `${email.text} ${emailConfig.from}`;
+      const emailText = `from: ${correoRemitente}\n${email.text}`;
 
       await this.transporter.sendMail({
-        from: emailConfig.from,
+        from: correoRemitente,
         to: recipients,
         subject: email.subject,
-        text: email.text,
+        text: emailText,
         html: email.html,
         attachments: attachments
       });
