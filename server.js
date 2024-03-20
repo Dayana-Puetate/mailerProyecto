@@ -2,7 +2,7 @@ const express = require('express')
 const swaggerJsdoc = require('swagger-jsdoc')
 const swaggerUi = require('swagger-ui-express')
 const emailRoutes = require('./routes/emailRoute')
-const ngrok = require('ngrok')
+//const ngrok = require('ngrok')
 
 const app = express()
 
@@ -34,12 +34,12 @@ const startServer = async () => {
   app.listen(PORT, async () => {
     console.log(`Servidor en ejecución en el puerto ${PORT}`);
 
-    try {
-      const url = await ngrok.connect(PORT);
-      console.log(`Aplicacion disponible en ${url}`);
-    } catch (error) {
-      console.error('Error al iniciar servifdor.', error);
-    }
+    // try {
+    //   const url = await ngrok.connect(PORT);
+    //   console.log(`Aplicacion disponible en ${url}`);
+    // } catch (error) {
+    //   console.error('Error al iniciar servifdor.', error);
+    // }
   });
 
 
