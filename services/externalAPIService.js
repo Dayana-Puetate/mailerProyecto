@@ -1,34 +1,41 @@
-
 const axios = require('axios');
 const emailConfig = require('../config/emailConfig');
 
 class ExternalAPIService {
+
   async getEmails() {
     let emails;
-
-    //intenta obtener los correos electrónicos de la variable de entorno
+  
     if (emailConfig.apiURL) {
-      emails = JSON.parse(emailConfig.apiURL);
+      try {
+        const apiUrlData = JSON.parse(emailConfig.apiURL);
+        if (Array.isArray(apiUrlData)) {
+          // Si es un array, simplemente asigna los correos electrónicos
+          emails = apiUrlData;
+        } else if (apiUrlData && apiUrlData.data && Array.isArray(apiUrlData.data)) {
+          // Si es un objeto y tiene una propiedad 'data' que es un array, extrae los correos electrónicos
+          emails = apiUrlData.data.reduce((acc, item) => {
+            if (item.correos && Array.isArray(item.correos)) {
+              acc.push(item.correos);
+            }
+            return acc;
+          }, []);
+        }
+      } catch (error) {
+        throw new Error('Error al analizar EXTERNAL_API_URL');
+      }
     } else {
-
-      throw new Error('No se encontraron correos electrónicos en las variables de entorno.');
+      throw new Error('No se encontró EXTERNAL_API_URL');
     }
-
-    //si los correos se obtuvieron correctamente, devuélvelos
-    if (emails) {
-      return emails;
+  
+    if (!emails || emails.length === 0) {
+      throw new Error('No se encontraron correos electrónicos válidos en EXTERNAL_API_URL');
     }
-
-    // Si no se pudo obtener los correos electrónicos de la variable de entorno,
-    //intenta obtenerlos desde la API externa
-    try {
-      const response = await axios.get(emailConfig.apiURL);
-      return response.data.recipients;
-    } catch (error) {
-      //si ocurre un error al obtener los correos electrónicos desde la API externa, lanza un error
-      throw new Error('Error al obtener los destinatarios de la API externa');
-    }
+  
+    return emails;
   }
+  
+  
 }
 
 module.exports = ExternalAPIService;

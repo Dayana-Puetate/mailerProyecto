@@ -1,3 +1,4 @@
+
 const nodemailer = require('nodemailer');
 const emailConfig = require('../config/emailConfig');
 const fs = require('fs');
@@ -32,22 +33,22 @@ class EmailService {
         console.error('La lista de destinatarios es inválida.');
         return;
       }
-      
+
+      const emailText = email.text;
       const correoRemitente = `${email.text} ${emailConfig.from}`;
-      const emailText = `from: ${correoRemitente}\n${email.text}`;
+      //const emailText = from: ${correoRemitente}\n${email.text};
 
       await this.transporter.sendMail({
         from: correoRemitente,
         to: recipients,
         subject: email.subject,
-        text: emailText,
         html: email.html,
         attachments: attachments
       });
       console.log('Correo electrónico enviado con éxito.');
 
       //eliminar archivos adjuntos después de enviar el correo electrónico
-      this.deleteAttachments(attachments);
+      //this.deleteAttachments(attachments);
 
     } catch (error) {
       console.error('Error al enviar el correo electrónico:', error);
@@ -64,7 +65,7 @@ class EmailService {
           fs.unlinkSync(filePath);
           console.log(`Archivo adjunto '${attachment.filename}' eliminado.`);
         } catch (error) {
-          console.error(`Error al eliminar el archivo adjunto '${attachment.filename}':`, error);
+          console.error(`Error al eliminar el archivo adjunto '${attachment.filename}':, error`);
         }
       } else {
         console.warn(`El archivo adjunto '${attachment.filename}' no existe.`);

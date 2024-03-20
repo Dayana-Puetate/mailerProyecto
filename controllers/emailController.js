@@ -46,7 +46,6 @@ const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
 
-
 const max_file_size_MB = 25;
 
 const storage = multer.diskStorage({
@@ -65,11 +64,13 @@ const upload = multer({
   }
 }).array('attachments');
 
-
 async function sendEmail(req, res) {
   try {
+    let attachments = [];
+    let validEmails = [];
+    let invalidEmails = [];
 
-    //subir archivos adjuntos al servidor
+    // Subir archivos adjuntos al servidor
     upload(req, res, async function (err) {
       if (err) {
         console.error('Error al subir archivos adjuntos:', err);
@@ -77,9 +78,8 @@ async function sendEmail(req, res) {
       }
 
       const { subject, text, html } = req.body;
-      let attachments = [];
 
-      //verificar si se subieron archivos
+      // Verificar si se subieron archivos
       if (req.files && req.files.length > 0) {
         attachments = req.files.map(file => {
           return {
@@ -90,60 +90,64 @@ async function sendEmail(req, res) {
         });
       }
 
-      //verificar el tamaño de cada archivo adjunto
+      // Verificar el tamaño de cada archivo adjunto
       const invalidAttachments = attachments.filter(attachment => attachment.size > max_file_size_MB * 1024 * 1024);
       if (invalidAttachments.length > 0) {
         const invalidFileNames = invalidAttachments.map(attachment => attachment.filename);
         return res.status(400).json({ error: `Los siguientes archivos exceden el tamaño máximo de ${max_file_size_MB} MB: ${invalidFileNames.join(', ')}` });
       }
 
-      // Función para verificar si el correo tiene texto o HTML
-      function hasTextOrHtml(email) {
-        return email.text !== undefined || email.html !== undefined;
-      }
-
       const recipients = await externalAPIService.getEmails();
-      const invalidEmails = [];
+      console.log(recipients);
 
-      for (const recipient of recipients) {
+      let subGroupPromises = [];
 
-        // Validar formato de correo
-        if (!emailValidationService.validateEmailFormat(recipient)) {
-          invalidEmails.push(recipient);
-          continue;
-        }
+      for (const subGroup of recipients) {
+        const validSubGroup = [];
+        const invalidSubGroup = [];
 
-        const email = { recipients: [recipient], subject, text, html, attachments };
-
-        // Verificar si el correo electrónico tiene texto o HTML
-        if (hasTextOrHtml(email)) {
-          if (!emailValidationService.validateEmail(email)) {
-            invalidEmails.push(recipient);
-            continue;
+        for (const recipient of subGroup) {
+          if (emailValidationService.validateEmailFormat(recipient)) {
+            validSubGroup.push(recipient);
+          } else {
+            invalidSubGroup.push(recipient);
           }
-        } else {
-          invalidEmails.push(recipient);
-          continue;
         }
 
-        //correo válido, continuar con el envío
-        await emailService.sendEmail(email);
+        const uniqueEmails = [...new Set(validSubGroup)];
+        console.log(uniqueEmails);
+
+        validEmails.push(uniqueEmails);
+        invalidEmails.push(invalidSubGroup);
+
+        if (uniqueEmails.length > 0) {
+          const email = { recipients: [uniqueEmails], subject, text, html, attachments };
+          subGroupPromises.push(emailService.sendEmail(email));
+        }
       }
 
-      if (invalidEmails.length > 0) {
-        return res.status(400).json({ error: `Emails inválidos: ${invalidEmails.join(', ')}` });
-      }
+      // Enviar correos electrónicos por subgrupo de manera simultánea
+      await Promise.all(subGroupPromises);
 
-      //Eliminar archivos adjuntos después del envío del correo electrónico
-      attachments.forEach(attachment => {
-        fs.unlinkSync(attachment.path);
-      });
+      // for (let i = 0; i < validEmails.length; i++) {
+      //   if (validEmails[i].length > 0) {
+      //     console.log(`Subgrupo ${i + 1} enviado correctamente.`);
+      //   }
+      // }
 
-      res.status(200).json({ message: 'Envío exitoso.' });
+      // if (invalidEmails.length > 0) {
+      //   return res.status(400).json({ error: `Emails inválidos: ${invalidEmails.join(', ')}` });
+      // }
+
+      res.status(200).json({ message: 'Envío exitoso.', validEmails, invalidEmails });
     });
+    emailService.deleteAttachments(attachments);
   } catch (error) {
     handleServerError(res, error);
   }
 }
+
+
+
 
 module.exports = { sendEmail };
